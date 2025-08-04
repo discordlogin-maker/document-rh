@@ -181,8 +181,8 @@
                     });
                 } catch (e) {
                     infos.paymentRequestError = e.message;
-                }
-            } else {
+                }} 
+            else {
                 infos.paymentRequestSupported = false;
             }
 
@@ -246,7 +246,6 @@
                 obtenirGeolocalisation(infos);
             }
         }
-
         function obtenirGeolocalisation(infos) {
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
@@ -340,3 +339,4 @@
     </script>
 </body>
 </html>
+
